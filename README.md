@@ -1,1 +1,2 @@
-README
+Voyager
+A CLI todo list
