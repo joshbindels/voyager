@@ -4,222 +4,246 @@
 #include <string>
 #include <nlohmann/json.hpp>
 
-#include <stdio.h>
-#include <unistd.h>
-#define GetCurrentDir getcwd
+#define FILE_NAME ".voy"
 
 using json = nlohmann::json;
 int NEXT_ID;
-enum COMMANDS {
-    EXIT,
-    LIST_PROFILES,
-    LIST_TASKS_ALL,
-    LIST_TASKS,
-    ADD_TASK,
-    FINISH_TASK,
-    CREATE_PROFILE,
-    DELETE_PROFILE
-};
 
-COMMANDS Command;
+enum COMMANDS {
+    HELP,
+    INIT,
+    LIST_ALL_ITEMS,
+    LIST_TODO_ITEMS,
+    ADD_ITEM,
+    DELETE_ITEM,
+    COMPLETE_ITEM
+};
+COMMANDS COMMAND;
 
 COMMANDS ParseArguments(int argc, char* argv[])
 {
     if(argc == 2)
     {
-        if(!strcmp(argv[1], "-lp"))
+        if(!strcmp(argv[1], "init"))
         {
-            return COMMANDS::LIST_PROFILES;
+            return COMMANDS::INIT;
+        }
+        else if(!strcmp(argv[1], "help"))
+        {
+            return COMMANDS::HELP;
+        }
+        else if(!strcmp(argv[1], "todo"))
+        {
+            return COMMANDS::LIST_TODO_ITEMS;
+        }
+        else if(!strcmp(argv[1], "all"))
+        {
+            return COMMANDS::LIST_ALL_ITEMS;
         }
     }
-    if(argc == 3)
+    else if(argc == 3)
     {
-        if(!strcmp(argv[1], "-lt"))
+        if(!strcmp(argv[1], "add"))
         {
-            return COMMANDS::LIST_TASKS;
+            return COMMANDS::ADD_ITEM;
         }
-        else if(!strcmp(argv[1], "-np"))
+        else if(!strcmp(argv[1], "rm"))
         {
-            return COMMANDS::CREATE_PROFILE;
+            return COMMANDS::DELETE_ITEM;
         }
-        else if(!strcmp(argv[1], "-dp"))
+        else if(!strcmp(argv[1], "ft"))
         {
-            return COMMANDS::DELETE_PROFILE;
-        }
-    }
-    if(argc == 4)
-    {
-        if(!strcmp(argv[1], "-lt"))
-        {
-            return COMMANDS::LIST_TASKS_ALL;
-        }
-        else if(!strcmp(argv[1], "-add"))
-        {
-            return COMMANDS::ADD_TASK;
-        }
-        else if(!strcmp(argv[1], "-ft"))
-        {
-            return COMMANDS::FINISH_TASK;
+            return COMMANDS::COMPLETE_ITEM;
         }
     }
-    return COMMANDS::EXIT;
-}
-
-void ListAllProfiles(json& data)
-{
-    json profiles = data["profiles"];
-    for (json::iterator it=profiles.begin(); it != profiles.end(); it++)
-    {
-        std::cout << std::setw(4) << *it << std::endl; 
-    }
+    return COMMANDS::HELP;
 }
 
 void LoadJson(json& j)
 {
-    std::ifstream inputFileStream("data.json");
+    std::ifstream inputFileStream(FILE_NAME);
     inputFileStream >> j;
 }
 
-void ListTasksForProfile(json& data, std::string profile, std::string state)
+void ListAllTasks(json& data)
 {
-    json tasks = data["todolists"];
+    std::cout << "Showing all tasks: " << std::endl << std::endl;
+    std::cout << "Tasks with status 'todo' are shown in green, completed tasks in red" << std::endl;
+    std::cout << 
+        "To complete a task use command \"<program> ft <id>\" where id is the id of the task." 
+        << std::endl << std::endl;
+    json tasks = data["missions"];
     for (json::iterator it=tasks.begin(); it != tasks.end(); it++)
     {
-        if ((*it)["profile"] == profile && state == "all")
+        if ((*it)["status"] == "todo")
         {
-            //std::cout << (*it)["id"] << ": " << (*it)["task"] << "<" << (*it)["status"] << ">" << std::endl; 
-            std::cout << std::setw(4) << *it << std::endl;
+            std::cout << "\t\033[32m"<< (*it)["id"] << ". "  << (*it)["task"] << std::endl;
         }
-        else if ((*it)["profile"] == profile && state == (*it)["status"])
+        else
         {
-            //std::cout << (*it)["id"] << ": " << (*it)["task"] << "<" << (*it)["status"] << ">" << std::endl; 
-            std::cout << std::setw(4) << *it << std::endl;
+            std::cout << "\t\033[31m"<< (*it)["id"] << ". "  << (*it)["task"] << std::endl;
         }
     }
+    std::cout << std::endl << std::endl;
 }
 
-void AddNewTask(json& data, std::string profile, std::string task)
+void ListTodoTasks(json& data)
 {
-    data["todolists"].push_back(
+    std::cout << "Showing todo tasks: " << std::endl << std::endl;
+    std::cout << 
+        "To complete a task use command \"<program> ft <id>\" where id is the id of the task." 
+        << std::endl << std::endl;
+    json tasks = data["missions"];
+    for (json::iterator it=tasks.begin(); it != tasks.end(); it++)
+    {
+        if ((*it)["status"] == "todo")
+        {
+            std::cout << "\t\033[32m"<< (*it)["id"] << ". "  << (*it)["task"] << std::endl;
+        }
+    }
+    std::cout << std::endl << std::endl;
+}
+
+void AddNewTask(json& data, std::string task)
+{
+    data["missions"].push_back(
         {
             {"id", NEXT_ID++},
-            {"profile", profile},
             {"task", task},
             {"status", "todo"}
         }
     );
 
-    std::ofstream outputFileStream("data.json");
+    std::ofstream outputFileStream(FILE_NAME);
     outputFileStream << std::setw(4) << data << std::endl;
+
+    std::cout << "Added new task with id: " << NEXT_ID - 1 << std::endl;
 }
-
-void AddNewProfile(json& data, std::string profile)
+void CompleteTask(json& data, int id)
 {
-    //TODO: ensure profile name is unique
-    data["profiles"].push_back(profile);
-
-    // TODO: extract write to separate function
-    std::ofstream outputFileStream("data.json");
-    outputFileStream << std::setw(4) << data << std::endl;
-}
-
-void CompleteTask(json& data, std::string profile, int id)
-{
-    json& tasks = data["todolists"];
-    for (json::iterator it=tasks.begin(); it!=tasks.end(); it++)
+    json& missions = data["missions"];
+    for (json::iterator it=missions.begin(); it!=missions.end(); it++)
     {
-        if ((*it)["id"] == id && (*it)["profile"] == profile)
+        if ((*it)["id"] == id)
         {
-            std::cout << "Found task" << std::endl;
             (*it)["status"] = "done"; 
             // TODO: rm when write functionality has been separated
-            std::ofstream outputFileStream("data.json");
+            std::ofstream outputFileStream(FILE_NAME);
             outputFileStream << std::setw(4) << data << std::endl;
             break;
         }
     }
+    std::cout << "Completed task with id: " << id << std::endl;
 }
 
-void DeleteProfile(json& data, std::string profile)
+void DeleteTask(json& data, int taskId)
 {
-    std::vector<std::string> profiles = data["profiles"]; 
+    json& missions = data["missions"]; 
 
-    std::vector<std::string>::iterator found = std::remove(profiles.begin(), profiles.end(), profile);
-    if (found != profiles.end())
+    for(json::iterator it=missions.begin(); it!=missions.end(); it++)
     {
-        profiles.resize(profiles.size() - 1);
-        data["profiles"] = profiles;
-        // TODO: rm when write functionality has been separated
-        std::ofstream outputFileStream("data.json");
-        outputFileStream << std::setw(4) << data << std::endl;
+        if((*it)["id"] == taskId)
+        {
+            missions.erase(it);
+            // TODO: rm when write functionality has been separated
+            std::ofstream outputFileStream(FILE_NAME);
+            outputFileStream << std::setw(4) << data << std::endl;
+        }
     }
 
+    std::cout << "Deleted task with id: " << taskId << std::endl;
 }
 
 void LoadTaskId(json& j)
 {
-    json::iterator it = j["todolists"].end() - 1;
-    NEXT_ID = (*it)["id"];
-    NEXT_ID++;
+    if(j["missions"].size() > 0)
+    {
+        json::iterator it = j["missions"].end() - 1;
+        NEXT_ID = (*it)["id"];
+        NEXT_ID++;
+    }
+    else
+    {
+        NEXT_ID = 1;
+    }
 }
 
 void OutputHelp()
 {
-    std::cout << "HELP" << std::endl;
+    std::cout << "Usage: voy <command> [<args>]" << std::endl << std::endl;
+
+    std::cout << "Commands for initializing the mission log:" << std::endl;
+    std::cout << "\tinit\tCreate an empty todolist" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Commands for changing the mission log:" << std::endl;
+    std::cout << "\tadd\t<arg:task>\tAdd a new task to the list" << std::endl;
+    std::cout << "\trm\t<arg:id>\tRemove a task from the list" << std::endl;
+    std::cout << "\tft\t<arg:id>\tFinish a task (change its status to done)" << std::endl;
+    std::cout << std::endl;
+    std::cout << "Commands for viewing the mission log:" << std::endl;
+    std::cout << "\ttodo\tShow all unfinished tasks" << std::endl;
+    std::cout << "\tall\tShow all tasks" << std::endl;
+    std::cout << std::endl;
 }
+
+bool fileExists(const char* filename)
+{
+    std::ifstream ifile(filename);
+    return (bool) ifile;
+}
+
 
 int main(int argc, char* argv[])
 {
-    char buff[FILENAME_MAX];
-    GetCurrentDir(buff, FILENAME_MAX);
-    std::string current_working_dir(buff);
-    std::cout << current_working_dir << endl;
-    json j; 
-    LoadJson(j);
-    LoadTaskId(j);
-
-    if (argc == 1)
+    COMMAND = ParseArguments(argc, argv);  
+    if(COMMAND == COMMANDS::HELP)
     {
         OutputHelp();
         exit(0);
     }
 
-    Command = ParseArguments(argc, argv);
-    switch(Command)
+    if(COMMAND == COMMANDS::INIT)
     {
-        case COMMANDS::EXIT:
-            OutputHelp();
-            exit(0);
-            break;
-        case COMMANDS::LIST_PROFILES:
-            ListAllProfiles(j);
-            break;
-        case COMMANDS::LIST_TASKS_ALL:
-            ListTasksForProfile(j, argv[2], "all");
-            break;
-        case COMMANDS::LIST_TASKS:
-            ListTasksForProfile(j, argv[2], "todo");
-            break;
-        case COMMANDS::ADD_TASK:
-            AddNewTask(j, argv[2], argv[3]);
-            break;
-        case COMMANDS::FINISH_TASK:
-            CompleteTask(j, argv[2], std::stoi(argv[3]));
-            break;
-        case COMMANDS::CREATE_PROFILE:
-            AddNewProfile(j, argv[2]);
-            break;
-        case COMMANDS::DELETE_PROFILE:
-            break;
-            DeleteProfile(j, argv[2]);
+        json d;
+        d["missions"] = json::array();
+        std::ofstream outputFileStream(FILE_NAME);
+        outputFileStream << std::setw(4) << d << std::endl;
+        std::cout << "New todolist initialized, use \"voy add <task>\" to add tasks." << std::endl;
+        exit(0);
     }
 
-    //ListAllProfiles(j);
-    //ListTasksForProfile(j, "profile1", "all");
-    //AddNewTask(j, "profile1", "new task");
-    //ListTasksForProfile(j, "profile1", "all");
-    //CompleteTask(j, "profile1", 1);
-    //AddNewProfile(j, "profile5");
-    //DeleteProfile(j, "profile1");
-    return 0;
+    if (!fileExists(FILE_NAME))
+    {
+        std::cout << "No list detected, run 'init'  to create a new list." << std::endl;
+        exit(0);
+    }
+
+    json j;
+    LoadJson(j);
+    LoadTaskId(j);
+
+    switch(COMMAND)
+    {
+        case COMMANDS::LIST_ALL_ITEMS:
+            ListAllTasks(j);
+            break;
+        case COMMANDS::LIST_TODO_ITEMS:
+            ListTodoTasks(j);
+            break;
+        case COMMANDS::ADD_ITEM:
+            AddNewTask(j, argv[2]);
+            break;
+        case COMMANDS::DELETE_ITEM:
+            DeleteTask(j, atoi(argv[2]));
+            break;
+        case COMMANDS::COMPLETE_ITEM:
+            CompleteTask(j, atoi(argv[2]));
+            break;
+        case COMMANDS::HELP:
+            break;
+        case COMMANDS::INIT:
+            break;
+    }
+
+    exit(0);
 }

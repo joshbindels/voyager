@@ -1,6 +1,6 @@
 CC = g++
 SOURCE = main.cpp
-OUT = out
+OUT = voy
 FLAGS = -W -Wall -Werror -std=c++14
 
 $(OUT): $(SOURCE)
